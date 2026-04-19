@@ -9,6 +9,7 @@ from app.models.user_roles import user_roles
 
 if TYPE_CHECKING:
     from app.models.role import Role
+    from app.models.user_sessions import UserSession
 
 class User(Base):
     __tablename__ = "users"
@@ -22,3 +23,9 @@ class User(Base):
         secondary=user_roles,
         back_populates="users",
     )
+    sessions: Mapped[list['UserSession']] = relationship(
+        back_populates="user"
+    )
+
+
+

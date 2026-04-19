@@ -1,6 +1,9 @@
 from fastapi import FastAPI
+from app.api.v1.auth import router as register
+
 
 app = FastAPI()
+app.include_router(register, prefix="/api/v1", tags=["auth_router"])
 
 
 @app.get("/")

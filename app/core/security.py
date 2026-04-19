@@ -2,6 +2,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 from pwdlib import PasswordHash
 import jwt
+from pydantic import SecretStr
 
 from app.core.config import get_settings
 
@@ -12,7 +13,7 @@ password_hash = PasswordHash.recommended()
 DUMMY_HASH = password_hash.hash("dummypassword")
 
 
-def hash_password(password) -> str:
+def hash_password(password: SecretStr) -> str:
     return password_hash.hash(password)
 
 
