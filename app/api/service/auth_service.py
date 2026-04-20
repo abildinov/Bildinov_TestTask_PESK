@@ -7,7 +7,7 @@ from app.models.role import Role
 from app.models.user_sessions import UserSession
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenPairResponse
 from app.schemas.user import UserResponse
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
 from fastapi import HTTPException, status
 
 
@@ -42,12 +42,18 @@ async def login_user(data: LoginRequest,
                      db: AsyncSession) -> TokenPairResponse:
     result = await db.execute(select(User).where(User.email == data.email))
     res_login = result.scalar_one_or_none()
-    if not res_login or not verify_password(data.password.get_secret_value(), res_login.hashed_password):
+    if not res_login or not verify_password(
+            data.password.get_secret_value(),
+            res_login.hashed_password
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Неверный пароль или почта'
                             )
     if res_login.is_active is False:
-        raise HTTPException(status_code=402)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Пользователь заблокирован",
+        )
 
     roles = [role.name for role in res_login.roles]
     session_id = str(uuid4())
@@ -56,10 +62,10 @@ async def login_user(data: LoginRequest,
                               session_id=session_id,
                               )
     db.add(new_session)
-    await db.commit()
 
     token = create_access_token(user_id=res_login.id, session_id=session_id, roles=roles)
-    refresh_token = create_access_token(user_id=res_login.id, session_id=session_id, roles=roles)
+    refresh_token = create_refresh_token(user_id=res_login.id, session_id=session_id)
+    await db.commit()
     return TokenPairResponse(access_token=token,
                              refresh_token=refresh_token,
                              token_type="bearer"

@@ -60,7 +60,7 @@ def create_refresh_token(user_id: int, session_id: str) -> str:
 
 
 def decode_token(token: str) -> dict:
-    return jwt.token(
+    return jwt.decode(
         token,
         settings.jwt_secret_key.get_secret_value(),
         algorithms=[settings.jwt_algorithm],

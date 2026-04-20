@@ -21,11 +21,5 @@ class TokenPairResponse(BaseModel):
     refresh_token: str
     token_type: str = 'bearer'
 
-# class UserSession(BaseModel):
-#     id: int
-#     user_id: str
-#     session_id: str
-#     is_revoked: str
-#     created_at: str
 
 
