@@ -14,10 +14,13 @@ DUMMY_HASH = password_hash.hash("dummypassword")
 
 
 def hash_password(password: SecretStr) -> str:
-    return password_hash.hash(password)
+    return password_hash.hash(password.get_secret_value())
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    :type hashed_password: str
+    """
     return password_hash.verify(plain_password, hashed_password)
 
 

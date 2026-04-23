@@ -10,11 +10,6 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-
-if TYPE_CHECKING:
-    from app.models.role import User
-
-
 class Role(Base):
     __tablename__ = "roles"
 
