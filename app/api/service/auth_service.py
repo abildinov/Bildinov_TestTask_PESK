@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from redis.asyncio import Redis
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
@@ -7,8 +8,9 @@ from app.models.role import Role
 from app.models.user_sessions import UserSession
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenPairResponse
 from app.schemas.user import UserResponse
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
+from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
 from fastapi import HTTPException, status
+from app.db.redis import redis_client, settings
 
 
 async def register_user(data: RegisterRequest, db: AsyncSession) -> UserResponse:
@@ -39,7 +41,8 @@ async def register_user(data: RegisterRequest, db: AsyncSession) -> UserResponse
 
 
 async def login_user(data: LoginRequest,
-                     db: AsyncSession) -> TokenPairResponse:
+                     db: AsyncSession,
+                     redis_client: Redis) -> TokenPairResponse:
     result = await db.execute(select(User).where(User.email == data.email))
     res_login = result.scalar_one_or_none()
     if not res_login or not verify_password(
@@ -65,9 +68,25 @@ async def login_user(data: LoginRequest,
 
     token = create_access_token(user_id=res_login.id, session_id=session_id, roles=roles)
     refresh_token = create_refresh_token(user_id=res_login.id, session_id=session_id)
+    # на данном этапе должна быть интеграция редис
+    # whitelist:access:{jti}
+    # whitelist:refresh:{jti}
+    access_payload  = decode_token(token)
+    refresh_payload  = decode_token(refresh_token)
+    access_jti = access_payload['jti']
+    refresh_jti = refresh_payload['jti']
+    await redis_client.set(f'whitelist:access:{access_jti}', "1",
+                           ex=settings.access_token_expire_minutes * 60 )
+    await redis_client.set(f'whitelist:refresh:{refresh_jti}', "1",
+                           ex=settings.refresh_token_expire_minutes * 24 * 60 * 60)
+    await redis_client.set(f'whitelist:session:{session_id}', "1",
+                           access_jti, refresh_jti)
+
     await db.commit()
     return TokenPairResponse(access_token=token,
                              refresh_token=refresh_token,
                              token_type="bearer"
 
                              )
+# наверное здесь должна быть функция logout
+# blacklist:{jti}

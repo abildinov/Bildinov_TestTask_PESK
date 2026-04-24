@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.redis import get_redis
 from app.dependencies.auth import get_current_user
 from app.db.session import get_db
 from app.models.user import User
@@ -28,8 +30,9 @@ async def register(
 async def login(
         data: LoginRequest,
         db: AsyncSession = Depends(get_db),
+        redis_client: Redis = Depends(get_redis),
                 ):
-    return await login_user(data=data, db=db)
+    return await login_user(data=data, db=db, redis_client=redis_client)
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):

@@ -14,6 +14,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme),
                      db: AsyncSession = Depends(get_db),
                      ) -> User:
     payload =decode_token(token)
+    # тут достаем jti
+    # проверяем white list и black list
+    # решаем пускать дальше или нет
 
     if payload.get("type") != "access":
         raise HTTPException(
