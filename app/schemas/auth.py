@@ -11,7 +11,7 @@ class LoginRequest(BaseModel):
     password: SecretStr
 
 
-class RefreshRequets(BaseModel):
+class RefreshRequest(BaseModel):
     refresh_token: str
 
 
