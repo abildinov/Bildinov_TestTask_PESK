@@ -3,6 +3,8 @@ from uuid import uuid4
 from redis.asyncio import Redis
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.models.user import User
 from app.models.role import Role
 from app.models.user_sessions import UserSession
@@ -42,14 +44,18 @@ async def register_user(data: RegisterRequest, db: AsyncSession) -> UserResponse
         id=new_user.id,
         email=new_user.email,
         is_active=new_user.is_active,
-        roles=[role.name for role in new_user.roles],
+        roles=[default_role.name],
     )
 
 
 async def login_user(data: LoginRequest,
                      db: AsyncSession,
                      redis_client: Redis) -> TokenPairResponse:
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.email == data.email)
+    )
     res_login = result.scalar_one_or_none()
     if not res_login or not verify_password(
             data.password.get_secret_value(),
@@ -131,7 +137,11 @@ async def refresh_tokens(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or revoked token"
         )
-    db_res = await db.execute(select(User).where(User.id == user_id))
+    db_res = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.id == user_id)
+    )
     user = db_res.scalar_one_or_none()
     if user is None:
         raise HTTPException(
@@ -190,30 +200,37 @@ async def refresh_tokens(
     )
 
 
-async def logout_user(token: str,
-                 db: AsyncSession,
-                 redis_client: Redis,
+async def logout_user(
+    token: str,
+    db: AsyncSession,
+    redis_client: Redis,
 ):
     payload = decode_token(token)
-    if payload['type'] != 'access':
+
+    if payload["type"] != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type"
+            detail="Invalid token type",
         )
-    session_id = payload['sid']
-    session_jtis = await redis_client.smembers(f'session_tokens:{session_id}')
+
+    session_id = payload["sid"]
+    session_jtis = await redis_client.smembers(f"session_tokens:{session_id}")
+
     for session_jti in session_jtis:
-        await redis_client.delete(f'whitelist:access:{session_jti}')
-        await redis_client.delete(f'whitelist:refresh:{session_jti}')
+        await redis_client.delete(f"whitelist:access:{session_jti}")
+        await redis_client.delete(f"whitelist:refresh:{session_jti}")
         await redis_client.set(
             f"blacklist:{session_jti}",
             "1",
             ex=settings.refresh_token_expire_days * 24 * 60 * 60,
         )
 
-    smnt = await db.execute(select(UserSession).where(UserSession.session_id == session_id))
-    session_obj  = smnt.scalar_one_or_none()
-    if session_obj :
+    smnt = await db.execute(
+        select(UserSession).where(UserSession.session_id == session_id)
+    )
+    session_obj = smnt.scalar_one_or_none()
+
+    if session_obj is not None:
         session_obj.is_revoked = True
         await db.commit()
 

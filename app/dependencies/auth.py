@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models.user import User
 from app.core.security import decode_token
@@ -31,7 +31,11 @@ async def get_current_user(access_token: str = Depends(oauth2_scheme),
             detail="Invalid or revoked token"
         )
     user_id = int(payload.get("sub"))
-    db_res = await db.execute(select(User).where(User.id == user_id))
+    db_res = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.id == user_id)
+    )
     current_user = db_res.scalar_one_or_none()
     if current_user is None:
         raise HTTPException(
